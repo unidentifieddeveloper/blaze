@@ -3,6 +3,10 @@
 Are you running ElasticSearch? Want to take your data and get the heck outta
 Dodge? **Blaze** provides everything you need in a neat, blazing fast package!
 
+| **Linux / OSX** |
+| --------------- |
+| [![Build Status](https://travis-ci.org/vktr/blaze.svg?branch=master)](https://travis-ci.org/vktr/blaze) |
+
 
 ## Features
 
