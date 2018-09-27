@@ -38,13 +38,24 @@ ElasticSearch Bulk API, meaning you can use `curl` to put the data back.
 curl -H "Content-Type: application/x-ndjson" -XPOST localhost:9200/other_data/_bulk --data-binary "@dump.json"
 ```
 
+One issue when working with large datasets is that ElasticSearch has an upper
+limit on the size of HTTP requests (2GB). The solution is to split the file
+with something like `parallel`. The split should be done on even line numbers
+since each command is actually two lines in the file.
+
+```sh
+cat dump.json | parallel --pipe -l 50000 curl -s -H "Content-Type: application/x-ndjson" -XPOST localhost:9200/other_data/_bulk --data-binary "@-"
+```
+
 
 ### Command line options
 
  - `--host` - the host where ElasticSearch is running.
  - `--index` - the index to dump.
- - `--slices` - the number of slices to split the scroll. Should be set to the number of shards for the index (as seen on `/_cat/indices`). Defaults to *5*.
- - `--size` - the size of the response (i.e, length of the `hits` array). Defaults to *5000*.
+ - `--slices` - the number of slices to split the scroll. Should be set to the
+   number of shards for the index (as seen on `/_cat/indices`). Defaults to *5*.
+ - `--size` - the size of the response (i.e, length of the `hits` array).
+   Defaults to *5000*.
 
 
 ## Building
@@ -62,7 +73,8 @@ $ make
 
 Copyright © Viktor Elofsson and contributors.
 
-Blaze is provided as-is under the MIT license. For more information see [LICENSE](https://github.com/vktr/blaze/blob/master/LICENSE).
+Blaze is provided as-is under the MIT license. For more information see
+[LICENSE](https://github.com/vktr/blaze/blob/master/LICENSE).
 
  - For libcurl, see https://curl.haxx.se/docs/copyright.html 
  - For RapidJSON, see https://github.com/Tencent/rapidjson/blob/master/license.txt
