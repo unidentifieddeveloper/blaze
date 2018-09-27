@@ -8,6 +8,7 @@
 
 #include <curl/curl.h>
 
+#include "argh.h"
 #include "../vendor/rapidjson/include/rapidjson/document.h"
 #include "../vendor/rapidjson/include/rapidjson/filewritestream.h"
 #include "../vendor/rapidjson/include/rapidjson/writer.h"
@@ -269,26 +270,6 @@ void dump(
     } while (hits_count > 0);
 }
 
-bool find_cmd_option(
-    std::vector<std::string> const& args,
-    std::string              const& name,
-    std::string              &      out)
-{
-    for (std::string const& arg : args)
-    {
-        if (arg.substr(0, name.size()) != name)
-        {
-            continue;
-        }
-
-        out = arg.substr(name.size() + 1);
-
-        return true;
-    }
-
-    return false;
-}
-
 int main(
     int    argc,
     char * argv[])
@@ -299,43 +280,36 @@ int main(
     std::vector<std::unique_ptr<thread_container>> threads;
 
     // Parse command line options
+    argh::parser cmdl(argv);
+
     std::string host;
-    if (!find_cmd_option(args, "--host", host))
+    if (!(cmdl({"--host"}) >> host))
     {
-        std::cerr << "Argument --host <host> required." << std::endl;
+        std::cerr << "Must provide an ElasticSearch host (--host)" << std::endl;
         return 1;
     }
 
     std::string index;
-    if (!find_cmd_option(args, "--index", index))
+    if (!(cmdl({"--index"}) >> index))
     {
-        std::cerr << "Argument --index <index> required." << std::endl;
+        std::cerr << "Must provide an index (--index)" << std::endl;
         return 1;
     }
 
-    std::string slices;
-    if (!find_cmd_option(args, "--slices", slices))
-    {
-        slices = std::to_string(DEFAULT_SLICES);
-    }
+    int slices;
+    cmdl({"--slices"}, DEFAULT_SLICES) >> slices;
 
-    std::string size;
-    if (!find_cmd_option(args, "--size", size))
-    {
-        size = std::to_string(DEFAULT_SIZE);
-    }
+    int size;
+    cmdl({"--size"}, DEFAULT_SIZE) >> size;
 
-    int num_size   = std::atoi(size.c_str());
-    int num_slices = std::atoi(slices.c_str());
-
-    for (int i = 0; i < num_slices; i++)
+    for (int i = 0; i < slices; i++)
     {
         dump_options opts;
         opts.host      = host;
         opts.index     = index;
-        opts.size      = num_size;
+        opts.size      = size;
         opts.slice_id  = i;
-        opts.slice_max = num_slices;
+        opts.slice_max = slices;
 
         auto cnt       = std::unique_ptr<thread_container>(new thread_container());
         cnt->slice_id  = i;
