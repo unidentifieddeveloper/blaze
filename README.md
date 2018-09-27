@@ -15,6 +15,18 @@ Dodge? **Blaze** provides everything you need in a neat, blazing fast package!
  - Distributed as a single, tiny binary.
 
 
+ ### Performance
+
+Blaze compared to other ElastcSearch dump tools. The index has ~3.5M rows and
+is ~5GB in size. Each tool is timed with `time` and measures the time to write
+a simple JSON dump file.
+
+| **Tool**    | **Time** |
+| ----------- | -------- |
+| Blaze       | 00m40s   |
+| elasticdump | 04m38s   |
+
+
 ## Usage
 
 Get the binary for your platform from the Releases page or compile it yourself.
