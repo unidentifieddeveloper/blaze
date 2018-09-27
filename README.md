@@ -17,13 +17,26 @@ Dodge? **Blaze** provides everything you need in a neat, blazing fast package!
 
 ## Usage
 
-Get the binary for your platform from the Releases page or compile it yourself. If you use it often it might make sense to put it in your `PATH` somewhere.
+Get the binary for your platform from the Releases page or compile it yourself.
+If you use it often it might make sense to put it in your `PATH` somewhere.
 
 ```sh
-$ blaze --host=http://localhost:9200 --index=humongous_data_1
+$ blaze --host=http://localhost:9200 --index=massive_1 > dump.json
 ```
 
-This will connect to ElasticSearch on the specified host and start downloading the `humongous_data_1` index to your local machine. The output will be split into a number of files depending on the number of slices (default: 5).
+This will connect to ElasticSearch on the specified host and start downloading
+the `massive_1` index to *stdout*. Make sure to redirect this somewhere, such as
+a JSON file.
+
+
+### Output format
+
+Blaze will dump everything to *stdout* in a format compatible with the
+ElasticSearch Bulk API, meaning you can use `curl` to put the data back.
+
+```sh
+curl -H "Content-Type: application/x-ndjson" -XPOST localhost:9200/other_data/_bulk --data-binary "@dump.json"
+```
 
 
 ### Command line options

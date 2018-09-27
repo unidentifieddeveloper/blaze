@@ -14,6 +14,8 @@
 #define DEFAULT_SLICES 5
 #define WRITE_BUF_SIZE 65536
 
+std::mutex mtx_out;
+
 struct curl_response
 {
     curl_response()
@@ -88,39 +90,21 @@ struct dump_options
 {
     std::string host;
     std::string index;
-    std::string filename;
-    int slice_id;
-    int slice_max;
-    int size;
-};
-
-struct file_output
-{
-    file_output(std::string const& filename)
-        : fd(fopen(filename.c_str(), "w")),
-        stream(fd, buffer, sizeof(buffer))
-    {
-    }
-
-    ~file_output()
-    {
-        fclose(fd);
-    }
-
-private:
-    FILE* fd;
-    char buffer[WRITE_BUF_SIZE];
-
-public:
-    rapidjson::FileWriteStream stream;
+    int         slice_id;
+    int         slice_max;
+    int         size;
 };
 
 void write_document(
-    rapidjson::FileWriteStream &      stream,
-    rapidjson::Document        const& document,
-    int                        *      hits_count,
-    std::string                *      scroll_id)
+    rapidjson::Document        & document,
+    int                        * hits_count,
+    std::string                * scroll_id)
 {
+    std::unique_lock<std::mutex> lock(mtx_out);
+
+    static char                       buffer[WRITE_BUF_SIZE];
+    static rapidjson::FileWriteStream stream(stdout, buffer, sizeof(buffer));
+
     // Epic const unfolding.
     auto const& scroll_id_value   = document["_scroll_id"];
     auto const& hits_object_value = document["hits"];
@@ -128,13 +112,38 @@ void write_document(
     auto const& hits_value        = hits_object["hits"];
     auto const& hits              = hits_value.GetArray();
 
+    // Shared allocator
+    auto& allocator               = document.GetAllocator();
+
     for (rapidjson::Value const& hit : hits)
     {
-        rapidjson::Writer<rapidjson::FileWriteStream> writer(stream);
-        hit.Accept(writer);
+        // Create an object to write to meta
+        rapidjson::Value metaIndexObject(rapidjson::kObjectType);
 
-        // Put a single new-line at the end to create a new-line
-        // separated JSON file.
+        metaIndexObject.AddMember(
+            "_type",
+            rapidjson::Value().SetString(hit["_type"].GetString(), allocator),
+            allocator);
+
+        metaIndexObject.AddMember(
+            "_id",
+            rapidjson::Value().SetString(hit["_id"].GetString(), allocator),
+            allocator);
+
+        rapidjson::Value metaObject(rapidjson::kObjectType);
+
+        metaObject.AddMember(
+            "index",
+            metaIndexObject,
+            allocator);
+
+        rapidjson::Writer<rapidjson::FileWriteStream> meta(stream);
+        metaObject.Accept(meta);
+        stream.Put('\n');
+
+        // Write the _source object
+        rapidjson::Writer<rapidjson::FileWriteStream> source(stream);
+        hit["_source"].Accept(source);
         stream.Put('\n');
     }
 
@@ -155,7 +164,6 @@ void dump(
     dump_options const& options)
 {
     curl_wrap crl;
-    file_output output(options.filename);
 
     std::string query = "{\n"
         "\"size\": " + std::to_string(options.size) + ",\n"
@@ -180,7 +188,6 @@ void dump(
     int         hits_count;
 
     write_document(
-        output.stream,
         doc,
         &hits_count,
         &scroll_id);
@@ -204,7 +211,6 @@ void dump(
         }
 
         write_document(
-            output.stream,
             sdoc,
             &hits_count,
             &scroll_id);
@@ -267,16 +273,12 @@ int main(
         size = std::to_string(DEFAULT_SIZE);
     }
 
-    int num_size = std::atoi(size.c_str());
+    int num_size   = std::atoi(size.c_str());
     int num_slices = std::atoi(slices.c_str());
 
     for (int i = 0; i < num_slices; i++)
     {
-        std::stringstream filename;
-        filename << index << "." << i << ".json";
-
         dump_options opts;
-        opts.filename  = filename.str();
         opts.host      = host;
         opts.index     = index;
         opts.size      = num_size;
