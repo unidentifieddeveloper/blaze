@@ -126,7 +126,7 @@ void write_document(
     int                        * hits_count,
     std::string                * scroll_id)
 {
-    std::unique_lock<std::mutex> lock(mtx_out);
+    std::unique_lock<std::mutex>      lock(mtx_out);
 
     static char                       buffer[WRITE_BUF_SIZE];
     static rapidjson::FileWriteStream stream(stdout, buffer, sizeof(buffer));
@@ -166,11 +166,13 @@ void write_document(
         rapidjson::Writer<rapidjson::FileWriteStream> meta(stream);
         metaObject.Accept(meta);
         stream.Put('\n');
+        stream.Flush();
 
         // Write the _source object
         rapidjson::Writer<rapidjson::FileWriteStream> source(stream);
         hit["_source"].Accept(source);
         stream.Put('\n');
+        stream.Flush();
     }
 
     *scroll_id  = scroll_id_value.GetString();
