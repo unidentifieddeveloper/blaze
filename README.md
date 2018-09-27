@@ -41,7 +41,7 @@ Building Blaze is easy.
 ### On Linux (and OSX)
 
 ```sh
-$ g++ --std=c++11 src/blaze.cpp -lcurl -march=native -O3 -o blaze
+$ make
 ```
 
 

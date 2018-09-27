@@ -8,4 +8,4 @@ os:
   - linux
   - osx
 
-script: g++ --std=c++11 src/blaze.cpp -lcurl -march=native -O3 -o blaze
+script: make
