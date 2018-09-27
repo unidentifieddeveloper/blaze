@@ -63,15 +63,19 @@ public:
         curl_easy_cleanup(crl);
     }
 
-    bool post_data(
+    bool get_or_post_data(
         std::string   const& url,
-        std::string   const& body,
-        curl_response & resp)
+        curl_response      & resp,
+        std::string          body = "")
     {
         curl_easy_setopt(crl, CURLOPT_URL,           url.c_str());
         curl_easy_setopt(crl, CURLOPT_WRITEFUNCTION, &write_data);
         curl_easy_setopt(crl, CURLOPT_WRITEDATA,     reinterpret_cast<void*>(&resp));
-        curl_easy_setopt(crl, CURLOPT_POSTFIELDS,    body.c_str());
+
+        if (!body.empty())
+        {
+            curl_easy_setopt(crl, CURLOPT_POSTFIELDS,    body.c_str());
+        }
 
         CURLcode res = curl_easy_perform(crl);
 
@@ -182,7 +186,7 @@ void write_document(
 
 void output_parser_error(
     rapidjson::Document const& doc,
-    std::stringstream        & stream)
+    std::ostream             & stream)
 {
     stream << "JSON parsing failed with code: "
            << doc.GetParseError()
@@ -206,7 +210,7 @@ void dump(
 
     curl_response resp;
 
-    if (!crl.post_data(options.host + "/" + options.index + "/_search?scroll=1m", query, resp))
+    if (!crl.get_or_post_data(options.host + "/" + options.index + "/_search?scroll=1m", resp, query))
     {
         state->error << "A HTTP error occured: " << resp.error;
         return;
@@ -243,7 +247,7 @@ void dump(
 
         curl_response resp_scroll;
 
-        if (!crl.post_data(options.host + "/_search/scroll", query, resp_scroll))
+        if (!crl.get_or_post_data(options.host + "/_search/scroll", resp_scroll, query))
         {
             state->error << "A HTTP error occured: " << resp_scroll.error;
             return;
@@ -270,6 +274,40 @@ void dump(
     } while (hits_count > 0);
 }
 
+int dump_mappings(
+    std::string const& host,
+    std::string const& index)
+{
+    static char                       buffer[WRITE_BUF_SIZE];
+    static rapidjson::FileWriteStream stream(stdout, buffer, sizeof(buffer));
+
+    curl_response                     resp;
+    curl_wrap                         crl;
+    rapidjson::Document               doc;
+    std::string                       url = host + "/" + index + "/_mapping";
+
+    if (!crl.get_or_post_data(url, resp))
+    {
+        std::cerr << "A HTTP error occured: " << resp.error << std::endl;
+        return 1;
+    }
+
+    doc.Parse(resp.data, resp.data_size);
+
+    if (doc.HasParseError())
+    {
+        output_parser_error(doc, std::cerr);
+        return 1;
+    }
+
+    rapidjson::Writer<rapidjson::FileWriteStream> writer(stream);
+    doc[index.c_str()].Accept(writer);
+    stream.Put('\n');
+    stream.Flush();
+
+    return 0;
+}
+
 int main(
     int    argc,
     char * argv[])
@@ -294,6 +332,13 @@ int main(
     {
         std::cerr << "Must provide an index (--index)" << std::endl;
         return 1;
+    }
+
+    if (cmdl["--dump-mappings"])
+    {
+        return dump_mappings(
+            host,
+            index);
     }
 
     int slices;
