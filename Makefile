@@ -5,7 +5,7 @@ RM=rm -f
 all: blaze
 
 blaze: src/blaze.o
-	$(CXX) -o blaze src/blaze.o -lcurl
+	$(CXX) -o blaze src/blaze.o -lcurl -lpthread
 
 blaze.o: src/blaze.cpp
 	$(CXX) $(CPPFLAGS) -c src/blaze.cpp -o src/blaze.o
