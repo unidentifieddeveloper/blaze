@@ -67,10 +67,10 @@ public:
         std::string   const& body,
         curl_response & resp)
     {
-        curl_easy_setopt(crl, CURLOPT_URL, url.c_str());
+        curl_easy_setopt(crl, CURLOPT_URL,           url.c_str());
         curl_easy_setopt(crl, CURLOPT_WRITEFUNCTION, &write_data);
-        curl_easy_setopt(crl, CURLOPT_WRITEDATA, reinterpret_cast<void*>(&resp));
-        curl_easy_setopt(crl, CURLOPT_POSTFIELDS, body.c_str());
+        curl_easy_setopt(crl, CURLOPT_WRITEDATA,     reinterpret_cast<void*>(&resp));
+        curl_easy_setopt(crl, CURLOPT_POSTFIELDS,    body.c_str());
 
         CURLcode res = curl_easy_perform(crl);
 
