@@ -1,4 +1,5 @@
 #include <fstream>
+#include <iomanip>
 #include <iostream>
 #include <mutex>
 #include <sstream>
@@ -17,6 +18,18 @@
 
 std::mutex mtx_out;
 
+struct thread_state
+{
+    std::stringstream error;
+};
+
+struct thread_container
+{
+    int slice_id;
+    thread_state state;
+    std::thread thread;
+};
+
 struct curl_response
 {
     curl_response()
@@ -32,6 +45,8 @@ struct curl_response
 
     char* data;
     size_t data_size;
+    long response_code;
+    std::string error;
 };
 
 class curl_wrap
@@ -47,7 +62,7 @@ public:
         curl_easy_cleanup(crl);
     }
 
-    void post_data(
+    bool post_data(
         std::string   const& url,
         std::string   const& body,
         curl_response & resp)
@@ -56,7 +71,17 @@ public:
         curl_easy_setopt(crl, CURLOPT_WRITEFUNCTION, &write_data);
         curl_easy_setopt(crl, CURLOPT_WRITEDATA, reinterpret_cast<void*>(&resp));
         curl_easy_setopt(crl, CURLOPT_POSTFIELDS, body.c_str());
-        curl_easy_perform(crl);
+
+        CURLcode res = curl_easy_perform(crl);
+
+        if (res == CURLE_OK)
+        {
+            curl_easy_getinfo(crl, CURLINFO_RESPONSE_CODE, &resp.response_code);
+            return true;
+        }
+
+        resp.error = curl_easy_strerror(res);
+        return false;
     }
 
 private:
@@ -153,16 +178,18 @@ void write_document(
 }
 
 void output_parser_error(
-    rapidjson::Document const& doc)
+    rapidjson::Document const& doc,
+    std::stringstream        & stream)
 {
-    std::cerr << "JSON parsing failed with code '"
-              << doc.GetParseError()
-              << "' at offset "
-              << doc.GetErrorOffset() << std::endl;
+    stream << "JSON parsing failed with code: "
+           << doc.GetParseError()
+           << ", at offset "
+           << doc.GetErrorOffset();
 }
 
 void dump(
-    dump_options const& options)
+    dump_options const& options,
+    thread_state      * state)
 {
     curl_wrap crl;
 
@@ -175,14 +202,25 @@ void dump(
     "}";
 
     curl_response resp;
-    crl.post_data(options.host + "/" + options.index + "/_search?scroll=1m", query, resp);
+
+    if (!crl.post_data(options.host + "/" + options.index + "/_search?scroll=1m", query, resp))
+    {
+        state->error << "A HTTP error occured: " << resp.error;
+        return;
+    }
+
+    if (resp.response_code != 200)
+    {
+        state->error << "Server returned HTTP status " << resp.response_code;
+        return;
+    }
 
     rapidjson::Document doc;
     doc.Parse(resp.data ,resp.data_size);
 
     if (doc.HasParseError())
     {
-        return output_parser_error(doc);
+        return output_parser_error(doc, state->error);
     }
 
     std::string scroll_id;
@@ -200,19 +238,30 @@ void dump(
             "\"scroll_id\": \"" + scroll_id + "\"\n"
         "}\n";
 
-        curl_response resp2;
-        crl.post_data(options.host + "/_search/scroll", query, resp2);
+        curl_response resp_scroll;
 
-        rapidjson::Document sdoc;
-        sdoc.Parse(resp2.data, resp2.data_size);
-
-        if (sdoc.HasParseError())
+        if (!crl.post_data(options.host + "/_search/scroll", query, resp_scroll))
         {
-            return output_parser_error(sdoc);
+            state->error << "A HTTP error occured: " << resp_scroll.error;
+            return;
+        }
+
+        if (resp.response_code != 200)
+        {
+            state->error << "Server returned HTTP status " << resp_scroll.response_code;
+            return;
+        }
+
+        rapidjson::Document doc_search;
+        doc_search.Parse(resp_scroll.data, resp_scroll.data_size);
+
+        if (doc_search.HasParseError())
+        {
+            return output_parser_error(doc_search, state->error);
         }
 
         write_document(
-            sdoc,
+            doc_search,
             &hits_count,
             &scroll_id);
     } while (hits_count > 0);
@@ -245,7 +294,7 @@ int main(
     curl_global_init(CURL_GLOBAL_ALL);
 
     std::vector<std::string> args(argv + 1, argv + argc);
-    std::vector<std::thread> threads;
+    std::vector<std::unique_ptr<thread_container>> threads;
 
     // Parse command line options
     std::string host;
@@ -286,15 +335,32 @@ int main(
         opts.slice_id  = i;
         opts.slice_max = num_slices;
 
-        threads.push_back(std::thread(dump, opts));
+        auto cnt       = std::unique_ptr<thread_container>(new thread_container());
+        cnt->slice_id  = i;
+        cnt->thread    = std::thread(dump, opts, &cnt->state);
+
+        threads.push_back(std::move(cnt));
     }
 
-    for (auto& th : threads)
+    int exit_code = 0;
+
+    for (auto& cnt : threads)
     {
-        th.join();
+        cnt->thread.join();
+
+        if (cnt->state.error.tellp() > 0)
+        {
+            std::cerr << "Slice "
+                      << std::setw(2) << std::setfill('0') << cnt->slice_id
+                      << " exited with error: "
+                      << cnt->state.error.rdbuf()
+                      << std::endl;
+
+            exit_code = 1;
+        }
     }
 
     curl_global_cleanup();
 
-    return 0;
+    return exit_code;
 }
