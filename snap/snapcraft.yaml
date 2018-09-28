@@ -1,0 +1,12 @@
+name: blaze
+version: 'stable'
+summary: Blazing fast ElasticSearch data exporter.
+description: |
+  Blaze exports your ElasticSearch data really, really fast.
+grade: devel
+confinement: devmode
+
+parts:
+  blaze:
+    source: .
+    plugin: make
