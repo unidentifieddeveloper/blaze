@@ -19,104 +19,6 @@
 
 std::mutex mtx_out;
 
-struct thread_state
-{
-    std::stringstream error;
-};
-
-struct thread_container
-{
-    int slice_id;
-    thread_state state;
-    std::thread thread;
-};
-
-struct curl_response
-{
-    curl_response()
-    {
-        data = reinterpret_cast<char*>(std::malloc(1));
-        data_size = 0;
-    }
-
-    ~curl_response()
-    {
-        std::free(data);
-    }
-
-    char* data;
-    size_t data_size;
-    long response_code;
-    std::string error;
-};
-
-class curl_wrap
-{
-public:
-    curl_wrap()
-    {
-        crl = curl_easy_init();
-    }
-
-    ~curl_wrap()
-    {
-        curl_easy_cleanup(crl);
-    }
-
-    bool get_or_post_data(
-        std::string   const& url,
-        curl_response      & resp,
-        std::string          body = "")
-    {
-        curl_easy_setopt(crl, CURLOPT_URL,           url.c_str());
-        curl_easy_setopt(crl, CURLOPT_WRITEFUNCTION, &write_data);
-        curl_easy_setopt(crl, CURLOPT_WRITEDATA,     reinterpret_cast<void*>(&resp));
-
-        if (!body.empty())
-        {
-            curl_easy_setopt(crl, CURLOPT_POSTFIELDS,    body.c_str());
-        }
-
-        CURLcode res = curl_easy_perform(crl);
-
-        if (res == CURLE_OK)
-        {
-            curl_easy_getinfo(crl, CURLINFO_RESPONSE_CODE, &resp.response_code);
-            return true;
-        }
-
-        resp.error = curl_easy_strerror(res);
-        return false;
-    }
-
-private:
-    static size_t write_data(
-        void   * buffer,
-        size_t   size,
-        size_t   nmemb,
-        void   * userp)
-    {
-        curl_response* resp = reinterpret_cast<curl_response*>(userp);
-
-        const char* real_buffer = reinterpret_cast<const char*>(buffer);
-        size_t real_size = size * nmemb;
-
-        // Realloc new data
-        void* ptr = std::realloc(resp->data, resp->data_size + real_size + 1);
-
-        resp->data = reinterpret_cast<char*>(ptr);
-
-        std::memcpy(&(resp->data[resp->data_size]), buffer, real_size);
-
-        resp->data_size += real_size;
-        resp->data[resp->data_size] = 0;
-
-        return real_size;
-    }
-
-    CURL* crl;
-};
-
 struct dump_options
 {
     std::string host;
@@ -126,10 +28,65 @@ struct dump_options
     int         size;
 };
 
+struct thread_state
+{
+    std::stringstream error;
+};
+
+struct thread_container
+{
+    int          slice_id;
+    thread_state state;
+    std::thread  thread;
+};
+
+size_t write_data(
+    void   * buffer,
+    size_t   size,
+    size_t   nmemb,
+    void   * userp)
+{
+    std::vector<char>* data = reinterpret_cast<std::vector<char>*>(userp);
+
+    const char* real_buffer = reinterpret_cast<const char*>(buffer);
+    size_t real_size = size * nmemb;
+    data->insert(data->end(), real_buffer, real_buffer + real_size);
+    return real_size;
+}
+
+bool get_or_post_data(
+    CURL                * crl,
+    std::string   const & url,
+    std::vector<char>   * data,
+    long                * response_code,
+    std::string         * error,
+    std::string           body = "")
+{
+    curl_easy_setopt(crl, CURLOPT_URL,           url.c_str());
+    curl_easy_setopt(crl, CURLOPT_WRITEFUNCTION, &write_data);
+    curl_easy_setopt(crl, CURLOPT_WRITEDATA,     reinterpret_cast<void*>(data));
+
+    if (!body.empty())
+    {
+        curl_easy_setopt(crl, CURLOPT_POSTFIELDS,    body.c_str());
+    }
+
+    CURLcode res = curl_easy_perform(crl);
+
+    if (res == CURLE_OK)
+    {
+        curl_easy_getinfo(crl, CURLINFO_RESPONSE_CODE, response_code);
+        return true;
+    }
+
+    *error = curl_easy_strerror(res);
+    return false;
+}
+
 void write_document(
-    rapidjson::Document        & document,
-    int                        * hits_count,
-    std::string                * scroll_id)
+    rapidjson::Document & document,
+    int                 * hits_count,
+    std::string         * scroll_id)
 {
     std::unique_lock<std::mutex>      lock(mtx_out);
 
@@ -198,7 +155,7 @@ void dump(
     dump_options const& options,
     thread_state      * state)
 {
-    curl_wrap crl;
+    CURL* crl = curl_easy_init();
 
     std::string query = "{\n"
         "\"size\": " + std::to_string(options.size) + ",\n"
@@ -208,22 +165,32 @@ void dump(
         "}\n"
     "}";
 
-    curl_response resp;
+    std::vector<char> buffer;
+    long              response_code;
+    std::string       error;
 
-    if (!crl.get_or_post_data(options.host + "/" + options.index + "/_search?scroll=1m", resp, query))
+    bool res = get_or_post_data(
+        crl,
+        options.host + "/" + options.index + "/_search?scroll=1m",
+        &buffer,
+        &response_code,
+        &error,
+        query);
+
+    if (!res)
     {
-        state->error << "A HTTP error occured: " << resp.error;
+        state->error << "A HTTP error occured: " << error;
         return;
     }
 
-    if (resp.response_code != 200)
+    if (response_code != 200)
     {
-        state->error << "Server returned HTTP status " << resp.response_code;
+        state->error << "Server returned HTTP status " << response_code;
         return;
     }
 
     rapidjson::Document doc;
-    doc.Parse(resp.data ,resp.data_size);
+    doc.Parse(buffer.data(), buffer.size());
 
     if (doc.HasParseError())
     {
@@ -245,22 +212,30 @@ void dump(
             "\"scroll_id\": \"" + scroll_id + "\"\n"
         "}\n";
 
-        curl_response resp_scroll;
+        buffer.clear();
 
-        if (!crl.get_or_post_data(options.host + "/_search/scroll", resp_scroll, query))
+        res = get_or_post_data(
+            crl,
+            options.host + "/_search/scroll",
+            &buffer,
+            &response_code,
+            &error,
+            query);
+
+        if (!res)
         {
-            state->error << "A HTTP error occured: " << resp_scroll.error;
+            state->error << "A HTTP error occured: " << error;
             return;
         }
 
-        if (resp.response_code != 200)
+        if (response_code != 200)
         {
-            state->error << "Server returned HTTP status " << resp_scroll.response_code;
+            state->error << "Server returned HTTP status " << response_code;
             return;
         }
 
         rapidjson::Document doc_search;
-        doc_search.Parse(resp_scroll.data, resp_scroll.data_size);
+        doc_search.Parse(buffer.data(), buffer.size());
 
         if (doc_search.HasParseError())
         {
@@ -272,27 +247,39 @@ void dump(
             &hits_count,
             &scroll_id);
     } while (hits_count > 0);
+
+    curl_easy_cleanup(crl);
 }
 
 int dump_mappings(
     std::string const& host,
     std::string const& index)
 {
-    static char                       buffer[WRITE_BUF_SIZE];
-    static rapidjson::FileWriteStream stream(stdout, buffer, sizeof(buffer));
+    static char                       write_buffer[WRITE_BUF_SIZE];
+    static rapidjson::FileWriteStream stream(stdout, write_buffer, sizeof(write_buffer));
 
-    curl_response                     resp;
-    curl_wrap                         crl;
+
+    CURL                            * crl = curl_easy_init();
+    long                              response_code;
     rapidjson::Document               doc;
     std::string                       url = host + "/" + index + "/_mapping";
+    std::string                       error;
+    std::vector<char>                 buffer;
 
-    if (!crl.get_or_post_data(url, resp))
+    bool res = get_or_post_data(
+        crl,
+        url,
+        &buffer,
+        &response_code,
+        &error);
+
+    if (!res)
     {
-        std::cerr << "A HTTP error occured: " << resp.error << std::endl;
+        std::cerr << "A HTTP error occured: " << error << std::endl;
         return 1;
     }
 
-    doc.Parse(resp.data, resp.data_size);
+    doc.Parse(buffer.data(), buffer.size());
 
     if (doc.HasParseError())
     {
@@ -305,6 +292,8 @@ int dump_mappings(
     stream.Put('\n');
     stream.Flush();
 
+    curl_easy_cleanup(crl);
+
     return 0;
 }
 
@@ -314,7 +303,6 @@ int main(
 {
     curl_global_init(CURL_GLOBAL_ALL);
 
-    std::vector<std::string> args(argv + 1, argv + argc);
     std::vector<std::unique_ptr<thread_container>> threads;
 
     // Parse command line options

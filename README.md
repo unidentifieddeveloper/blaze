@@ -62,21 +62,23 @@ cat dump.json | parallel --pipe -l 50000 curl -s -H "Content-Type: application/x
 
 ### Command line options
 
- - `--host` - the host where ElasticSearch is running.
- - `--index` - the index to dump.
- - `--slices` - the number of slices to split the scroll. Should be set to the
+ - `--host=<value>` - the host where ElasticSearch is running.
+ - `--index=<value>` - the index to dump.
+ - `--slices=<value>` - *(optional)* the number of slices to split the scroll. Should be set to the
    number of shards for the index (as seen on `/_cat/indices`). Defaults to *5*.
- - `--size` - the size of the response (i.e, length of the `hits` array).
+ - `--size=<value>` - *(optional)* the size of the response (i.e, length of the `hits` array).
    Defaults to *5000*.
+ - `--dump-mappings` - specify this flag to dump the index mappings instead of the source.
 
 
-## Building
+## Building from source
 
-Building Blaze is easy.
+Building Blaze is easy. It requires `libcurl`.
 
 ### On Linux (and OSX)
 
 ```sh
+$ git submodule update --init
 $ make
 ```
 
