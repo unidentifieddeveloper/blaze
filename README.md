@@ -1,6 +1,6 @@
 # Blaze
 
-Are you running ElasticSearch? Want to take your data and get the heck outta
+Are you running Elasticsearch? Want to take your data and get the heck outta
 Dodge? **Blaze** provides everything you need in a neat, blazing fast package!
 
 | **Linux / OSX** |
@@ -10,14 +10,14 @@ Dodge? **Blaze** provides everything you need in a neat, blazing fast package!
 
 ## Features
 
- - Uses the [ElasticSearch sliced scroll API](https://www.elastic.co/guide/en/elasticsearch/reference/current/search-request-scroll.html) to get your data hella fast.
+ - Uses the [Elasticsearch sliced scroll API](https://www.elastic.co/guide/en/elasticsearch/reference/current/search-request-scroll.html) to get your data hella fast.
  - Written in modern C++ using [libcurl](https://github.com/curl/curl) and [RapidJSON](https://github.com/Tencent/RapidJSON).
  - Distributed as a single, tiny binary.
 
 
  ### Performance
 
-Blaze compared to other ElastcSearch dump tools. The index has ~3.5M rows and
+Blaze compared to other Elasticsearch dump tools. The index has ~3.5M rows and
 is ~5GB in size. Each tool is timed with `time` and measures the time to write
 a simple JSON dump file.
 
@@ -36,7 +36,7 @@ If you use it often it might make sense to put it in your `PATH` somewhere.
 $ blaze --host=http://localhost:9200 --index=massive_1 > dump.json
 ```
 
-This will connect to ElasticSearch on the specified host and start downloading
+This will connect to Elasticsearch on the specified host and start downloading
 the `massive_1` index to *stdout*. Make sure to redirect this somewhere, such as
 a JSON file.
 
@@ -44,13 +44,13 @@ a JSON file.
 ### Output format
 
 Blaze will dump everything to *stdout* in a format compatible with the
-ElasticSearch Bulk API, meaning you can use `curl` to put the data back.
+Elasticsearch Bulk API, meaning you can use `curl` to put the data back.
 
 ```sh
 curl -H "Content-Type: application/x-ndjson" -XPOST localhost:9200/other_data/_bulk --data-binary "@dump.json"
 ```
 
-One issue when working with large datasets is that ElasticSearch has an upper
+One issue when working with large datasets is that Elasticsearch has an upper
 limit on the size of HTTP requests (2GB). The solution is to split the file
 with something like `parallel`. The split should be done on even line numbers
 since each command is actually two lines in the file.
@@ -62,7 +62,7 @@ cat dump.json | parallel --pipe -l 50000 curl -s -H "Content-Type: application/x
 
 ### Command line options
 
- - `--host=<value>` - the host where ElasticSearch is running.
+ - `--host=<value>` - the host where Elasticsearch is running.
  - `--index=<value>` - the index to dump.
  - `--slices=<value>` - *(optional)* the number of slices to split the scroll. Should be set to the
    number of shards for the index (as seen on `/_cat/indices`). Defaults to *5*.
