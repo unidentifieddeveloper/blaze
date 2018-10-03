@@ -9,6 +9,7 @@
 #include <curl/curl.h>
 
 #include "argh.h"
+#include "base64.h"
 #include "../vendor/rapidjson/include/rapidjson/document.h"
 #include "../vendor/rapidjson/include/rapidjson/filewritestream.h"
 #include "../vendor/rapidjson/include/rapidjson/writer.h"
@@ -19,13 +20,21 @@
 
 std::mutex mtx_out;
 
+struct auth_options
+{
+    std::string type;
+    std::string user;
+    std::string pass;
+};
+
 struct dump_options
 {
-    std::string host;
-    std::string index;
-    int         slice_id;
-    int         slice_max;
-    int         size;
+    std::string  host;
+    std::string  index;
+    auth_options auth;
+    int          slice_id;
+    int          slice_max;
+    int          size;
 };
 
 struct thread_state
@@ -57,14 +66,26 @@ size_t write_data(
 bool get_or_post_data(
     CURL                * crl,
     std::string   const & url,
+    auth_options  const & auth,
     std::vector<char>   * data,
     long                * response_code,
     std::string         * error,
     std::string           body = "")
 {
+    curl_slist* headers = nullptr;
+    headers = curl_slist_append(headers, "Content-Type: application/json");
+
+    curl_easy_setopt(crl, CURLOPT_HTTPHEADER,    headers);
     curl_easy_setopt(crl, CURLOPT_URL,           url.c_str());
     curl_easy_setopt(crl, CURLOPT_WRITEFUNCTION, &write_data);
     curl_easy_setopt(crl, CURLOPT_WRITEDATA,     reinterpret_cast<void*>(data));
+
+    if (auth.type == "basic")
+    {
+        std::string user_pass = auth.user + ":" + auth.pass;
+        curl_easy_setopt(crl, CURLOPT_HTTPAUTH, CURLAUTH_BASIC);
+        curl_easy_setopt(crl, CURLOPT_USERPWD,  user_pass.c_str());
+    }
 
     if (!body.empty())
     {
@@ -172,6 +193,7 @@ void dump(
     bool res = get_or_post_data(
         crl,
         options.host + "/" + options.index + "/_search?scroll=1m",
+        options.auth,
         &buffer,
         &response_code,
         &error,
@@ -217,6 +239,7 @@ void dump(
         res = get_or_post_data(
             crl,
             options.host + "/_search/scroll",
+            options.auth,
             &buffer,
             &response_code,
             &error,
@@ -252,12 +275,12 @@ void dump(
 }
 
 int dump_mappings(
-    std::string const& host,
-    std::string const& index)
+    std::string  const& host,
+    std::string  const& index,
+    auth_options const& auth)
 {
     static char                       write_buffer[WRITE_BUF_SIZE];
     static rapidjson::FileWriteStream stream(stdout, write_buffer, sizeof(write_buffer));
-
 
     CURL                            * crl = curl_easy_init();
     long                              response_code;
@@ -269,6 +292,7 @@ int dump_mappings(
     bool res = get_or_post_data(
         crl,
         url,
+        auth,
         &buffer,
         &response_code,
         &error);
@@ -322,11 +346,32 @@ int main(
         return 1;
     }
 
+    auth_options auth;
+
+    if (cmdl({"--auth"}) >> auth.type)
+    {
+        if (auth.type == "basic")
+        {
+            if (!(cmdl({"--basic-username"}) >> auth.user))
+            {
+                std::cerr << "Must provide --basic-username when passing --auth=basic" << std::endl;
+                return 1;
+            }
+
+            if (!(cmdl({"--basic-password"}) >> auth.pass))
+            {
+                std::cerr << "Must provide --basic-password when passing --auth=basic" << std::endl;
+                return 1;
+            }
+        }
+    }
+
     if (cmdl["--dump-mappings"])
     {
         return dump_mappings(
             host,
-            index);
+            index,
+            auth);
     }
 
     int slices;
@@ -340,6 +385,7 @@ int main(
         dump_options opts;
         opts.host      = host;
         opts.index     = index;
+        opts.auth      = auth;
         opts.size      = size;
         opts.slice_id  = i;
         opts.slice_max = slices;

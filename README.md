@@ -70,6 +70,16 @@ cat dump.json | parallel --pipe -l 50000 curl -s -H "Content-Type: application/x
    Defaults to *5000*.
  - `--dump-mappings` - specify this flag to dump the index mappings instead of the source.
 
+#### Authentication
+
+To use HTTP Basic authentication you need to pass the following options. *Note*
+that passing a password on the command line will put it in your terminal
+history, so please use with care.
+
+ - `--auth=basic` - enable HTTP Basic authentication.
+ - `--basic-username=foo` - the username.
+ - `--basic-password=bar` - the password.
+
 
 ## Building from source
 
