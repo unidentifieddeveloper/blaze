@@ -1,4 +1,3 @@
-#include <fstream>
 #include <iomanip>
 #include <iostream>
 #include <mutex>
@@ -18,7 +17,7 @@
 #define DEFAULT_SLICES 5
 #define WRITE_BUF_SIZE 65536
 
-std::mutex mtx_out;
+static std::mutex mtx_out;
 
 struct auth_options
 {
@@ -89,10 +88,11 @@ bool get_or_post_data(
 
     if (!body.empty())
     {
-        curl_easy_setopt(crl, CURLOPT_POSTFIELDS,    body.c_str());
+        curl_easy_setopt(crl, CURLOPT_POSTFIELDS, body.c_str());
     }
 
     CURLcode res = curl_easy_perform(crl);
+    curl_slist_free_all(headers);
 
     if (res == CURLE_OK)
     {
@@ -123,39 +123,35 @@ void write_document(
 
     // Shared allocator
     auto& allocator               = document.GetAllocator();
+    auto  writer                  = rapidjson::Writer<rapidjson::FileWriteStream>(stream);
 
     for (rapidjson::Value const& hit : hits)
     {
-        // Create an object to write to meta
-        rapidjson::Value metaIndexObject(rapidjson::kObjectType);
+        auto meta_index      = rapidjson::Value(rapidjson::kObjectType);
+        auto meta_index_id   = rapidjson::Value();
+        auto meta_index_type = rapidjson::Value();
+        auto meta_object     = rapidjson::Value(rapidjson::kObjectType);
 
-        metaIndexObject.AddMember(
-            "_type",
-            rapidjson::Value().SetString(hit["_type"].GetString(), allocator),
-            allocator);
+        meta_index_id.SetString(hit["_id"].GetString(), allocator);
+        meta_index_type.SetString(hit["_type"].GetString(), allocator);
 
-        metaIndexObject.AddMember(
-            "_id",
-            rapidjson::Value().SetString(hit["_id"].GetString(), allocator),
-            allocator);
+        meta_index.AddMember("_id",   meta_index_id,   allocator);
+        meta_index.AddMember("_type", meta_index_type, allocator);
 
-        rapidjson::Value metaObject(rapidjson::kObjectType);
+        meta_object.AddMember("index", meta_index, allocator);
 
-        metaObject.AddMember(
-            "index",
-            metaIndexObject,
-            allocator);
+        // Serialize to output stream. Do it in two steps to get
+        // new-line separated JSON.
 
-        rapidjson::Writer<rapidjson::FileWriteStream> meta(stream);
-        metaObject.Accept(meta);
+        meta_object.Accept(writer);
         stream.Put('\n');
         stream.Flush();
+        writer.Reset(stream);
 
-        // Write the _source object
-        rapidjson::Writer<rapidjson::FileWriteStream> source(stream);
-        hit["_source"].Accept(source);
+        hit["_source"].Accept(writer);
         stream.Put('\n');
         stream.Flush();
+        writer.Reset(stream);
     }
 
     *scroll_id  = scroll_id_value.GetString();
