@@ -33,7 +33,7 @@ Get the binary for your platform from the Releases page or compile it yourself.
 If you use it often it might make sense to put it in your `PATH` somewhere.
 
 ```sh
-$ blaze --host=http://localhost:9200 --index=massive_1 > dump.json
+$ blaze --host=http://localhost:9200 --index=massive_1 > dump.ndjson
 ```
 
 This will connect to Elasticsearch on the specified host and start downloading
@@ -47,7 +47,7 @@ Blaze will dump everything to *stdout* in a format compatible with the
 Elasticsearch Bulk API, meaning you can use `curl` to put the data back.
 
 ```sh
-curl -H "Content-Type: application/x-ndjson" -XPOST localhost:9200/other_data/_bulk --data-binary "@dump.json"
+curl -H "Content-Type: application/x-ndjson" -XPOST localhost:9200/other_data/_bulk --data-binary "@dump.ndjson"
 ```
 
 One issue when working with large datasets is that Elasticsearch has an upper
@@ -56,7 +56,7 @@ with something like `parallel`. The split should be done on even line numbers
 since each command is actually two lines in the file.
 
 ```sh
-cat dump.json | parallel --pipe -l 50000 curl -s -H "Content-Type: application/x-ndjson" -XPOST localhost:9200/other_data/_bulk --data-binary "@-"
+cat dump.ndjson | parallel --pipe -l 50000 curl -s -H "Content-Type: application/x-ndjson" -XPOST localhost:9200/other_data/_bulk --data-binary "@-"
 ```
 
 
