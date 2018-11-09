@@ -8,7 +8,6 @@
 #include <curl/curl.h>
 
 #include "argh.h"
-#include "base64.h"
 #include "../vendor/rapidjson/include/rapidjson/document.h"
 #include "../vendor/rapidjson/include/rapidjson/filewritestream.h"
 #include "../vendor/rapidjson/include/rapidjson/writer.h"
