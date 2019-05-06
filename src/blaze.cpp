@@ -330,7 +330,7 @@ int main(
     std::string host;
     if (!(cmdl({"--host"}) >> host))
     {
-        std::cerr << "Must provide an ElasticSearch host (--host)" << std::endl;
+        std::cerr << "Must provide an Elasticsearch host (--host)" << std::endl;
         return 1;
     }
 
