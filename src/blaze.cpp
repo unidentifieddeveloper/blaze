@@ -269,6 +269,43 @@ void dump(
     curl_easy_cleanup(crl);
 }
 
+int64_t count_documents(
+    std::string  const& host,
+    std::string  const& index,
+    auth_options const& auth)
+{
+    CURL                * crl = curl_easy_init();
+    long                  response_code;
+    rapidjson::Document   doc;
+    std::string           url = host + "/" + index + "/_count";
+    std::string           error;
+    std::vector<char>     buffer;
+
+    bool res = get_or_post_data(
+        crl,
+        url,
+        auth,
+        &buffer,
+        &response_code,
+        &error);
+
+    if (!res)
+    {
+        std::cerr << "A HTTP error occured: " << error << std::endl;
+        return -1;
+    }
+
+    doc.Parse(buffer.data(), buffer.size());
+
+    if (doc.HasParseError())
+    {
+        output_parser_error(doc, std::cerr);
+        return -1;
+    }
+
+    return doc["count"].GetInt64();
+}
+
 int dump_mappings(
     std::string  const& host,
     std::string  const& index,
@@ -367,6 +404,13 @@ int main(
             host,
             index,
             auth);
+    }
+
+    // Sanity check - see if we have any documents in the index at all.
+    if (count_documents(host, index, auth) <= 0)
+    {
+        std::cerr << "Index is empty - no documents found" << std::endl;
+        return 0;
     }
 
     int slices;
