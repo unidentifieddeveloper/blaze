@@ -202,7 +202,7 @@ void dump(
 
     if (response_code != 200)
     {
-        state->error << "Server returned HTTP status " << response_code;
+        state->error << "Server returned HTTP status " << response_code << ": " << buffer.data();
         return;
     }
 
