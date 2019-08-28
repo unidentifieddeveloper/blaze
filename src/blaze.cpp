@@ -23,6 +23,7 @@ struct auth_options
     std::string type;
     std::string user;
     std::string pass;
+    bool insecure;
 };
 
 struct dump_options
@@ -77,6 +78,12 @@ bool get_or_post_data(
     curl_easy_setopt(crl, CURLOPT_URL,           url.c_str());
     curl_easy_setopt(crl, CURLOPT_WRITEFUNCTION, &write_data);
     curl_easy_setopt(crl, CURLOPT_WRITEDATA,     reinterpret_cast<void*>(data));
+
+    if (auth.insecure)
+    {
+        curl_easy_setopt(crl, CURLOPT_SSL_VERIFYPEER, 0);
+        curl_easy_setopt(crl, CURLOPT_SSL_VERIFYHOST, 0);
+    }
 
     if (auth.type == "basic")
     {
@@ -397,6 +404,8 @@ int main(
             }
         }
     }
+
+    auth.insecure = cmdl["--insecure"];
 
     if (cmdl["--dump-mappings"])
     {

@@ -79,7 +79,7 @@ history, so please use with care.
  - `--auth=basic` - enable HTTP Basic authentication.
  - `--basic-username=foo` - the username.
  - `--basic-password=bar` - the password.
-
+ - `--insecure` - For HTTPS connections, specify this flag to skip server certificate validation.
 
 ## Building from source
 
@@ -100,5 +100,5 @@ Copyright © Viktor Elofsson and contributors.
 Blaze is provided as-is under the MIT license. For more information see
 [LICENSE](https://github.com/vktr/blaze/blob/master/LICENSE).
 
- - For libcurl, see https://curl.haxx.se/docs/copyright.html 
+ - For libcurl, see https://curl.haxx.se/docs/copyright.html
  - For RapidJSON, see https://github.com/Tencent/rapidjson/blob/master/license.txt
