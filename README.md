@@ -92,6 +92,12 @@ $ git submodule update --init
 $ make
 ```
 
+### Run it from docker
+
+```terminal
+docker build -t blaze .
+docker run -it blaze blaze
+```
 
 ## License
 
