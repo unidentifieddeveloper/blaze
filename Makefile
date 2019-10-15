@@ -1,4 +1,4 @@
-CPPFLAGS=--std=c++11 -O3 -DNDEBUG=1
+CPPFLAGS=--std=c++11 -mtune=native -O3 -DNDEBUG=1
 CXX=g++
 RM=rm -f
 
