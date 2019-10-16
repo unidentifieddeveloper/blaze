@@ -8,10 +8,13 @@ LABEL maintainer="norman@khine.net"
 
 WORKDIR /tmp
 
-RUN apk update \
-  && apk add --no-cache g++ gcc automake make autoconf libtool openssl-dev curl-dev git \
-  && git clone --recurse-submodules https://github.com/unidentifieddeveloper/blaze.git . \
-  && make
+RUN apk update
+
+RUN apk add --no-cache g++ gcc automake make autoconf libtool curl-dev git \
+
+RUN git clone --recurse-submodules https://github.com/unidentifieddeveloper/blaze.git . \
+
+RUN make
 
 # -- runtime context
 
