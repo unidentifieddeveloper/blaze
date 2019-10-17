@@ -10,9 +10,9 @@ WORKDIR /tmp
 
 RUN apk update
 
-RUN apk add --no-cache g++ gcc automake make autoconf libtool curl-dev git \
+RUN apk add --no-cache g++ gcc automake make autoconf libtool curl-dev git
 
-RUN git clone --recurse-submodules https://github.com/unidentifieddeveloper/blaze.git . \
+RUN git clone --recurse-submodules https://github.com/unidentifieddeveloper/blaze.git .
 
 RUN make
 
