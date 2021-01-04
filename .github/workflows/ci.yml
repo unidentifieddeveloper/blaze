@@ -1,0 +1,25 @@
+name: CI
+on:
+  pull_request:
+  push:
+
+jobs:
+  build:
+    name: Build
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ macos-10.15, ubuntu-20.04 ]
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Setup Git
+        run: git submodule update --init --recursive
+
+      - name: Install dependencies (Ubuntu 20.04)
+        run: sudo apt-get install libcurl4-openssl-dev
+        if: matrix.os == 'ubuntu-20.04'
+
+      - name: Make
+        run: make
