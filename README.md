@@ -5,7 +5,7 @@ Dodge? **Blaze** provides everything you need in a neat, blazing fast package!
 
 | **Linux / OSX** |
 | --------------- |
-| [![Build Status](https://travis-ci.org/vktr/blaze.svg?branch=master)](https://travis-ci.org/vktr/blaze) |
+| [![Build Status](https://github.com/unidentifieddeveloper/blaze/workflows/CI/badge.svg?branch=master)](https://github.com/unidentifieddeveloper/blaze/actions?query=branch%3Amaster) |
 
 
 ## Features
