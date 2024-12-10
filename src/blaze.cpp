@@ -135,14 +135,11 @@ void write_document(
     {
         auto meta_index      = rapidjson::Value(rapidjson::kObjectType);
         auto meta_index_id   = rapidjson::Value();
-        auto meta_index_type = rapidjson::Value();
         auto meta_object     = rapidjson::Value(rapidjson::kObjectType);
 
         meta_index_id.SetString(hit["_id"].GetString(), allocator);
-        meta_index_type.SetString(hit["_type"].GetString(), allocator);
 
         meta_index.AddMember("_id",   meta_index_id,   allocator);
-        meta_index.AddMember("_type", meta_index_type, allocator);
 
         meta_object.AddMember("index", meta_index, allocator);
 
