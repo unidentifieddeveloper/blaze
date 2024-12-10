@@ -69,6 +69,7 @@ cat dump.ndjson | parallel --pipe -l 50000 curl -s -H "Content-Type: application
  - `--size=<value>` - *(optional)* the size of the response (i.e, length of the `hits` array).
    Defaults to *5000*.
  - `--dump-mappings` - specify this flag to dump the index mappings instead of the source.
+ - `--dump-index-info` - specify this flag to dump the full index information (settings and mappings) instead of the source.
 
 #### Authentication
 
