@@ -357,6 +357,53 @@ int dump_mappings(
     return 0;
 }
 
+int dump_index_info(
+    std::string  const& host,
+    std::string  const& index,
+    auth_options const& auth)
+{
+    static char                       write_buffer[WRITE_BUF_SIZE];
+    static rapidjson::FileWriteStream stream(stdout, write_buffer, sizeof(write_buffer));
+
+    CURL                            * crl = curl_easy_init();
+    long                              response_code;
+    rapidjson::Document               doc;
+    std::string                       url = host + "/" + index;
+    std::string                       error;
+    std::vector<char>                 buffer;
+
+    bool res = get_or_post_data(
+        crl,
+        url,
+        auth,
+        &buffer,
+        &response_code,
+        &error);
+
+    if (!res)
+    {
+        std::cerr << "A HTTP error occured: " << error << std::endl;
+        return 1;
+    }
+
+    doc.Parse(buffer.data(), buffer.size());
+
+    if (doc.HasParseError())
+    {
+        output_parser_error(doc, std::cerr);
+        return 1;
+    }
+
+    rapidjson::Writer<rapidjson::FileWriteStream> writer(stream);
+    doc[index.c_str()].Accept(writer);
+    stream.Put('\n');
+    stream.Flush();
+
+    curl_easy_cleanup(crl);
+
+    return 0;
+}
+
 int main(
     int    argc,
     char * argv[])
@@ -407,6 +454,13 @@ int main(
     if (cmdl["--dump-mappings"])
     {
         return dump_mappings(
+            host,
+            index,
+            auth);
+    }
+    else if (cmdl["--dump-index-info"])
+    {
+        return dump_index_info(
             host,
             index,
             auth);
